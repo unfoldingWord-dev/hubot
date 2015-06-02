@@ -12,6 +12,17 @@ has, etc!
 [hubot]: http://hubot.github.com
 [generator-hubot]: https://github.com/github/generator-hubot
 
+#### Creating a new bot for Development
+
+- `npm install -g hubot coffee-script yo generator-hubot`
+- `git clone git@github.com:unfoldingWord-dev/hubot.git`
+- `cd hubot`
+- `yo hubot`
+- `npm install hubot-slack --save`
+- Initialize git and make your initial commit
+- Check out the [hubot docs](https://github.com/github/hubot/tree/master/docs) for further guidance on how to build your bot and [hubot scripting](https://github.com/github/hubot/blob/master/docs/scripting.md).
+
+
 ### Running bot Locally
 
 You can test your hubot by running the following, however some plugins will not
