@@ -17,11 +17,8 @@ has, etc!
 - `npm install -g hubot coffee-script yo generator-hubot`
 - `git clone git@github.com:unfoldingWord-dev/hubot.git`
 - `cd hubot`
-- `yo hubot`
-- `npm install hubot-slack --save`
-- Initialize git and make your initial commit
-- Check out the [hubot docs](https://github.com/github/hubot/tree/master/docs) for further guidance on how to build your bot and [hubot scripting](https://github.com/github/hubot/blob/master/docs/scripting.md).
 
+Now you can run the bot (as below) and start developing!
 
 ### Running bot Locally
 
