@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/unfoldingWord-dev/hubot.svg)](https://travis-ci.org/unfoldingWord-dev/hubot)
+
 # bot
 
 bot is a chat bot built on the [Hubot][hubot] framework. It was
