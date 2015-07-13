@@ -222,3 +222,44 @@ Add the subdomain hubot should connect to. If you web URL looks like
 
 You may want to get comfortable with `heroku logs` and `heroku restart` if
 you're having issues.
+
+
+## Logging plugin
+
+
+ Configuration:
+   LOG_REDIS_URL: URL to Redis backend to use for logging (uses REDISTOGO_URL 
+                  if unset, and localhost:6379 if that is unset.
+   LOG_HTTP_USER: username for viewing logs over HTTP (default 'logs' if unset)
+   LOG_HTTP_PASS: password for viewing logs over HTTP (default 'changeme' if unset)
+   LOG_HTTP_PORT: port for our logging Connect server to listen on (default 8081)
+   LOG_STEALTH:   If set, bot will not announce that it is logging in chat
+   LOG_MESSAGES_ONLY: If set, bot will not log room enter or leave events
+   LOG_CHARSET:   Charset for serving the logs (default 'utf-8' if unset)
+
+# Commands:
+   hubot send me today's logs - messages you the logs for today
+   hubot what did I miss - messages you logs for the past 10 minutes
+   hubot what did I miss in the last x seconds/minutes/hours - messages you logs for the past x
+   hubot start logging - start logging messages from now on
+   hubot stop logging  - stop logging messages for the next 15 minutes
+   hubot stop logging forever - stop logging messages indefinitely
+   hubot stop logging for x seconds/minutes/hours - stop logging messages for the next x
+   i request the cone of silence - stop logging for the next 15 minutes
+
+# Notes:
+   This script by default starts a Connect server on 8081 with the following routes:
+     /
+       Form that takes a room ID and two UNIX timestamps to show the logs between.
+       Action is a GET with room, start, and end parameters to /logs/view.
+
+     /logs/view?room=room_name&start=1234567890&end=1456789023&presence=true
+       Shows logs between UNIX timestamps <start> and <end> for <room>,
+       and includes presence changes (joins, parts) if <presence>
+
+     /logs/:room
+       Lists all logs in the database for <room>
+
+     /logs/:room/YYYMMDD?presence=true
+       Lists all logs in <room> for the date YYYYMMDD, and includes joins and parts
+       if <presence>
