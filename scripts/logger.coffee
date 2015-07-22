@@ -194,7 +194,7 @@ module.exports = (robot) ->
   robot.hear /.*/, (msg) ->
     room = msg.message.user.room
     robot.logging[room] ||= {}
-    robot.brain.data.logging[room] ||= {}
+    robot.brain.data.logging[room] ||= {'enabled': true}
     if msg.match[0].match(///(#{robot.name} )?(start|stop) logging*///) or process.env.LOG_STEALTH
       robot.logging[room].notified = true
       return
@@ -465,7 +465,7 @@ enable_logging = (robot, redis, response) ->
 #       - 0 or undefined to disable logging indefinitely
 disable_logging = (robot, redis, response, end=0) ->
   room = response.message.user.room
-  robot.brain.data.logging[room] ||= {}
+  robot.brain.data.logging[room] ||= {'enabled':true}
 
   # If logging was already disabled
   if robot.brain.data.logging[room].enabled == false
@@ -534,7 +534,7 @@ log_message = (redis, robot, response) ->
   else if response.message instanceof hubot.LeaveMessage
     type = 'part'
   return if process.env.LOG_MESSAGES_ONLY && type != 'text'
-  entry = JSON.stringify(new Entry(response.message.user?['id'], Date.now(), type, response.message.text))
+  entry = JSON.stringify(new Entry(response.message.user.name || response.message.user.id || 'unknown', Date.now(), type, response.message.text))
   room = response.message.user.room || 'general'
   redis.rpush("logs:#{room}:#{date_id()}", entry)
 
