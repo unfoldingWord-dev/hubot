@@ -226,28 +226,29 @@ you're having issues.
 
 ## Logging plugin
 
+### Configuration
 
- Configuration:
-   LOG_REDIS_URL: URL to Redis backend to use for logging (uses REDISTOGO_URL 
-                  if unset, and localhost:6379 if that is unset.
-   LOG_HTTP_USER: username for viewing logs over HTTP (default 'logs' if unset)
-   LOG_HTTP_PASS: password for viewing logs over HTTP (default 'changeme' if unset)
-   LOG_HTTP_PORT: port for our logging Connect server to listen on (default 8081)
-   LOG_STEALTH:   If set, bot will not announce that it is logging in chat
-   LOG_MESSAGES_ONLY: If set, bot will not log room enter or leave events
-   LOG_CHARSET:   Charset for serving the logs (default 'utf-8' if unset)
+    LOG_REDIS_URL: URL to Redis backend to use for logging, uses REDISTOGO_URL if unset, and localhost:6379 if that is unset.
+    LOG_HTTP_USER: username for viewing logs over HTTP (default 'logs' if unset)
+    LOG_HTTP_PASS: password for viewing logs over HTTP (default 'changeme' if unset)
+    LOG_HTTP_PORT: port for our logging Connect server to listen on (default 8081)
+    LOG_STEALTH:   If set, bot will not announce that it is logging in chat
+    LOG_MESSAGES_ONLY: If set, bot will not log room enter or leave events
+    LOG_CHARSET:   Charset for serving the logs (default 'utf-8' if unset)
 
-# Commands:
-   hubot send me today's logs - messages you the logs for today
-   hubot what did I miss - messages you logs for the past 10 minutes
-   hubot what did I miss in the last x seconds/minutes/hours - messages you logs for the past x
-   hubot start logging - start logging messages from now on
-   hubot stop logging  - stop logging messages for the next 15 minutes
-   hubot stop logging forever - stop logging messages indefinitely
-   hubot stop logging for x seconds/minutes/hours - stop logging messages for the next x
-   i request the cone of silence - stop logging for the next 15 minutes
+### Commands
 
-# Notes:
+    hubot send me today's logs - messages you the logs for today
+    hubot what did I miss - messages you logs for the past 10 minutes
+    hubot what did I miss in the last x seconds/minutes/hours - messages you logs for the past x
+    hubot start logging - start logging messages from now on
+    hubot stop logging  - stop logging messages for the next 15 minutes
+    hubot stop logging forever - stop logging messages indefinitely
+    hubot stop logging for x seconds/minutes/hours - stop logging messages for the next x
+    i request the cone of silence - stop logging for the next 15 minutes
+
+### Notes
+
    This script by default starts a Connect server on 8081 with the following routes:
      /
        Form that takes a room ID and two UNIX timestamps to show the logs between.
