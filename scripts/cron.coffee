@@ -10,8 +10,11 @@ module.exports = (robot) ->
   # every hour post new unowned tickets
   new cronJob('0 0 * * * *', postNewUnownedTickets, null, true)
 
+  robot.respond /new-tickets/g, (msg) ->
+    msg.send "Manual: Telling slave to check for new tickets"
+    postNewUnownedTickets()
+
   postNewUnownedTickets = ->
-  	robot.respond (msg) ->
-  	  msg.send "Cron: telling slave to check for new tickets", ->
-        robot.emit 'slave:newTicket'
+    console.log('Let\'s get new tickets!');
+    robot.emit 'slave:newTicket'
         
