@@ -26,20 +26,18 @@ unless password?
 
 
 module.exports = (robot) ->
-
-
   robot.on 'slave:newTicket', ->
     helpDeskChannel = '#helpdesk'
-    robot.messageRoom helpDeskChannel, "Slave: Finding last hours new unowned tickets", ->
+    robot.messageRoom helpDeskChannel, "Slave: Finding new unowned tickets"
 
     auth = 'Basic' + new Buffer(username + ':' + password).toString('base64');
     queryStr = "%20Owner%20=%20%27Nobody%27%20AND%20(Status%20=%20%27new%27%20OR%20Status%20=%20%27open%27)"
     robot.http("#{rtUrl}/REST/1.0/search/ticket?query=#{queryStr}&format=s")
-      .headers(Authorization: auth, Content-Type: 'application/json')
+      .header('Authorization', auth)
+      .header('Content-Type', 'application/json')
       .get() (error, response, body) ->
-
         if error
-          console.log "Encountered and error :( #{error}"
+          console.log "Encountered an error :( #{error}"
           return
 
         if statusCode is 401
@@ -53,3 +51,5 @@ module.exports = (robot) ->
         console.log "Got back #{body}" # for debugging turn off when it works
 
         robot.messageRoom helpDeskChannel, "New/Open and Unowned tickets: #{body}"
+        response.send "New/Open and Unowned tickets: #{body}"
+    console.log(helpDeskChannel);
