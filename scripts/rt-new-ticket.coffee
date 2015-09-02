@@ -12,8 +12,8 @@
 rtUrl = process.env.BOT_RT_BASE_URL
 unless rtUrl?
   console.log "Missing BOT_RT_BASE_URL in environment: please set and try again"
-  return
-  
+  process.exit(1)
+
 username = process.env.BOT_RT_USERNAME
 unless username?
   console.log "Missing BOT_RT_USERNAME in environment: please set and try again"
