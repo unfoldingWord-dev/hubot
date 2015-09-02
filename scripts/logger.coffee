@@ -127,6 +127,20 @@ module.exports = (robot) ->
       res.statusCode = 200
       res.setHeader 'Content-Type', 'text/html' + charset_parameter
       res.end views.index(charset_meta: charset_meta)
+      
+    app.get '/logs', (req, res) ->
+      res.statusCode = 200
+      res.setHeader 'Content-Type', 'text/html' + charset_parameter
+      
+      res.write views.log_view.head(charset_meta: charset_meta)
+      res.write "<h2>All Logs</h2>\r\n"
+      res.write "<ul>\r\n"
+
+      client.smembers "rooms", (err, rooms) ->
+        rooms.forEach (room) ->
+          res.write "<li><a href=\"/logs/#{encodeURIComponent(room)}\">#{room}</a></li>\r\n"
+        res.write "</ul>"
+        res.end views.log_view.tail
 
     app.get '/logs/view', (req, res) ->
       res.statusCode = 200
@@ -194,7 +208,13 @@ module.exports = (robot) ->
   robot.hear /.*/, (msg) ->
     room = msg.message.user.room
     robot.logging[room] ||= {}
-    robot.brain.data.logging[room] ||= {'enabled': true}
+    enabled = true
+    if robot.adapter.client and robot.adapter.client.groups
+      for group in robot.adapter.client.groups
+        if group.name == room
+          enabled = false  # Do not log private groups by default
+          break 
+    robot.brain.data.logging[room] ||= {'enabled': enabled}
     if msg.match[0].match(///(#{robot.name} )?(start|stop) logging*///) or process.env.LOG_STEALTH
       robot.logging[room].notified = true
       return
@@ -520,6 +540,7 @@ log_entry = (redis, entry, room='general') ->
     throw new Error("Argument #{entry} to log_entry is not an entry object")
   entry = JSON.stringify entry
   redis.rpush("logs:#{room}:#{date_id()}", entry)
+  redis.sadd("rooms", room)
 
 # Listener callback to log message in redis
 # Params:
@@ -537,6 +558,7 @@ log_message = (redis, robot, response) ->
   entry = JSON.stringify(new Entry(response.message.user.name || response.message.user.id || 'unknown', Date.now(), type, response.message.text))
   room = response.message.user.room || 'general'
   redis.rpush("logs:#{room}:#{date_id()}", entry)
+  redis.sadd("rooms", room)
 
 escapeHTML = (str) ->
   if toString.call(str) == '[object String]'
@@ -559,6 +581,9 @@ views =
         <div class="container">
           <div class="row">
             <div class="span8">
+              <h1>&nbsp;</h1>
+              <h2><a href="/logs">Browse all rooms</a></h2>
+              <h1>&nbsp;</h1>
               <form action="/logs/view" class="form-vertical" method="get">
               <fieldset>
                 <legend>Search for logs</legend>
