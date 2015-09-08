@@ -40,7 +40,7 @@ module.exports = (robot) ->
         results.sort (a,b) ->
           return b.score-a.score # sort descending
         
-        if result.length
+        if results.length
           for result in results.slice(0, 3)
             res.send "#{result.lc} #{result.ln} http://td.unfoldingword.org/uw/languages/#{result.pk}/"
         else
