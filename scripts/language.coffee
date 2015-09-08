@@ -9,7 +9,6 @@ module.exports = (robot) ->
 
   get_languages = (callback) ->
     if robot.languages.lastUpdated < (Date.now() - 60*60*1000) # 1 hr cache time
-      console.log('getting things')
       robot.http("http://td.unfoldingword.org/exports/langnames.json")
       .get() (error, response, body) ->
 
