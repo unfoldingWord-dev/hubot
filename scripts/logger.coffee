@@ -126,21 +126,69 @@ module.exports = (robot) ->
     app.get '/', (req, res) ->
       res.statusCode = 200
       res.setHeader 'Content-Type', 'text/html' + charset_parameter
-      res.end views.index(charset_meta: charset_meta)
-      
+      res.write views.log_view.head(charset_meta: charset_meta)
+      res.write """
+              <h1>&nbsp;</h1>
+              <h2><a href="/logs">Browse all rooms</a></h2>
+              <h1>&nbsp;</h1>
+              <form action="/logs/search" class="form-vertical" method="get">
+              <fieldset>
+                <legend>Search the logs</legend>
+                <label for="room">Channel:</label>
+                #<select name="room">
+"""
+      client.smembers "rooms", (err, rooms) ->
+        rooms.sort().forEach (room) ->
+          res.write "<option value=\"#{encodeURIComponent(room)}\">#{room}</option>"
+        res.write """"
+                      </select>
+                      <label for="search">Text to search:</label>
+                      <input name="search" type="text" maxlength="200"/>
+                      <label for="start">From:</label>
+                      <input name="start" type="text" placeholder="mm/dd/yyyy" />
+                      <label for="end">To:</label>
+                      <input name="end" type="text" placeholder="mm/dd/yyyy" />
+                    </fieldset>
+                    <input type="submit" value="Search"/>
+                  </form>
+"""
+        res.end views.log_view.tail
+
     app.get '/logs', (req, res) ->
       res.statusCode = 200
       res.setHeader 'Content-Type', 'text/html' + charset_parameter
       
       res.write views.log_view.head(charset_meta: charset_meta)
-      res.write "<h2>All Logs</h2>\r\n"
-      res.write "<ul>\r\n"
-
+      res.write """
+              <form action="/logs/search" class="form-vertical" method="get">
+              <fieldset>
+                <legend>Search the logs</legend>
+                <label for="room">Channel:</label>
+                #<select name="room">
+"""
       client.smembers "rooms", (err, rooms) ->
-        rooms.forEach (room) ->
-          res.write "<li><a href=\"/logs/#{encodeURIComponent(room)}\">#{room}</a></li>\r\n"
-        res.write "</ul>"
-        res.end views.log_view.tail
+        rooms.sort().forEach (room) ->
+          res.write "<option value=\"#{encodeURIComponent(room)}\">#{room}</option>"
+        res.write """"
+                      </select>
+                      <label for="search">Text to search:</label>
+                      <input name="search" type="text" maxlength="200"/>
+                      <label for="start">From:</label>
+                      <input name="start" type="text" placeholder="mm/dd/yyyy" />
+                      <label for="end">To:</label>
+                      <input name="end" type="text" placeholder="mm/dd/yyyy" />
+                    </fieldset>
+                    <input type="submit" value="Search"/>
+                  </form>
+"""
+        res.write "<legend>View Log by Date</legend>\r\n"
+        res.write "<ul>\r\n"
+
+        client.smembers "rooms", (err, rooms) ->
+          rooms.sort().forEach (room) ->
+            res.write "<li><a href=\"/logs/#{encodeURIComponent(room)}\">##{room}</a></li>\r\n"
+          res.write "</ul>"
+          res.end views.log_view.tail
 
     app.get '/logs/view', (req, res) ->
       res.statusCode = 200
@@ -159,6 +207,38 @@ module.exports = (robot) ->
       get_logs_for_range client, m_start, m_end, room, (replies) ->
         res.write views.log_view.head(charset_meta: charset_meta)
         res.write format_logs_for_html(replies, presence).join("\r\n")
+        res.end views.log_view.tail
+
+    app.get '/logs/search', (req, res) ->
+      res.statusCode = 200
+      res.setHeader 'Content-Type', 'text/html' + charset_parameter
+      start = req.query.start
+      end   = req.query.end
+      room = req.query.room || 'general'
+      if(! req.query.start)
+        m_start = moment.unix 0
+      else
+        m_start = moment(start)
+
+      if(! end)
+        m_end = moment()
+      else
+        m_end = moment(end)
+
+      search_logs_for_range client, m_start, m_end, req.query.search, room, (replies) ->
+        res.write views.log_view.head(charset_meta: charset_meta)
+        res.write "<h2>Search results for #"+room
+        if(req.query.start)
+          res.write " from "+req.query.start
+        if(req.query.end)
+          if(req.query.start)
+            res.write " to "+req.query.end
+          else
+            res.write " before or on "+req.query.end
+        if(req.query.search)
+          res.write " containing <i>\""+req.query.search+"\""
+        res.write "</h2>"
+        res.write format_logs_for_html(replies, true, req.query.search).join("\r\n")
         res.end views.log_view.tail
 
     app.get '/logs/:room', (req, res) ->
@@ -325,7 +405,7 @@ format_logs_for_chat = (logs) ->
 # Returns an array of lines representing a table for <logs>
 # Params:
 #   logs - an array of log objects
-format_logs_for_html = (logs, presence=true) ->
+format_logs_for_html = (logs, presence=true, search=null) ->
   lines = []
   last_entry = null
   for log in logs
@@ -340,8 +420,8 @@ format_logs_for_html = (logs, presence=true) ->
     # If the date changed
     if not (l.date.date() == last_entry?.date?.date() and l.date.month() == last_entry?.date?.month())
       lines.push """<div class="row logentry">
-                  <div class="span2">&nbsp;</div>
-                  <div class="span10"><strong>Date changed to #{l.date.format("D MMMM YYYY")}</strong></div>
+                  <div class="span2"><strong>#{l.date.format("MMMM D, YYYY")}</strong></div>
+                  <div class="span10">&nbsp;</div>
                 </div>
               """
     last_entry = l
@@ -449,6 +529,24 @@ get_logs_for_range = (redis, start, end, room, callback) ->
     for log in logs
       e = JSON.parse log
       slice.push log if e.timestamp >= start.valueOf() && e.timestamp <= end.valueOf()
+    callback(slice)
+
+# Calls back an array of JSON log objects representing the log
+# between <start> and <end> that contain <search>
+# Params:
+#   redis  - a Redis client object
+#   start  - Date or Moment object representing the start of the range
+#   end    - Date or Moment object representing the end of the range (inclusive)
+#   search - String to search
+#   room   - the room to look up logs for
+#   callback - a function taking an array as an argument
+search_logs_for_range = (redis, start, end, search, room, callback) ->
+  get_logs_for_array redis, room, enumerate_keys_for_date_range(start, end), (logs) ->
+    slice = []
+    search = search.toLowerCase()
+    for log in logs
+      e = JSON.parse log
+      slice.push log if (! start || e.timestamp >= start.valueOf()) && (! end || e.timestamp <= end.valueOf()) && (! search || e.message.toLowerCase().indexOf(search) > -1)
     callback(slice)
 
 # Enables logging for the room that sent response
