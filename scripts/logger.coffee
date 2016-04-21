@@ -126,33 +126,7 @@ module.exports = (robot) ->
     app.get '/', (req, res) ->
       res.statusCode = 200
       res.setHeader 'Content-Type', 'text/html' + charset_parameter
-      res.write views.log_view.head(charset_meta: charset_meta)
-      res.write """
-              <h1>&nbsp;</h1>
-              <h2><a href="/logs">Browse all rooms</a></h2>
-              <h1>&nbsp;</h1>
-              <form action="/logs/search" class="form-vertical" method="get">
-              <fieldset>
-                <legend>Search the logs</legend>
-                <label for="room">Channel:</label>
-                #<select name="room">
-"""
-      client.smembers "rooms", (err, rooms) ->
-        rooms.sort().forEach (room) ->
-          res.write "<option value=\"#{encodeURIComponent(room)}\">#{room}</option>"
-        res.write """"
-                      </select>
-                      <label for="search">Text to search:</label>
-                      <input name="search" type="text" maxlength="200"/>
-                      <label for="start">From:</label>
-                      <input name="start" type="text" placeholder="mm/dd/yyyy" />
-                      <label for="end">To:</label>
-                      <input name="end" type="text" placeholder="mm/dd/yyyy" />
-                    </fieldset>
-                    <input type="submit" value="Search"/>
-                  </form>
-"""
-        res.end views.log_view.tail
+      res.end views.index(charset_meta: charset_meta)
 
     app.get '/logs', (req, res) ->
       res.statusCode = 200
@@ -160,11 +134,12 @@ module.exports = (robot) ->
       
       res.write views.log_view.head(charset_meta: charset_meta)
       res.write """
-              <form action="/logs/search" class="form-vertical" method="get">
+              <form id="search-form" action="/logs/search" class="form-vertical" method="get">
               <fieldset>
                 <legend>Search the logs</legend>
                 <label for="room">Channel:</label>
-                #<select name="room">
+                #<select id="room-select" name="room">
+                  <option value="">All Channels</option>
 """
       client.smembers "rooms", (err, rooms) ->
         rooms.sort().forEach (room) ->
@@ -172,11 +147,17 @@ module.exports = (robot) ->
         res.write """"
                       </select>
                       <label for="search">Text to search:</label>
-                      <input name="search" type="text" maxlength="200"/>
-                      <label for="start">From:</label>
-                      <input name="start" type="text" placeholder="mm/dd/yyyy" />
-                      <label for="end">To:</label>
-                      <input name="end" type="text" placeholder="mm/dd/yyyy" />
+                      <input id="search" name="search" type="text" maxlength="200"/>
+                      <label for="start">Between</label>
+                      <input name="start" type="text" placeholder="mm/dd/yyyy" class="datepicker"/>
+                      <label for="end">and</label>
+                      <input name="end" type="text" placeholder="mm/dd/yyyy"  class="datepicker"/>
+                      <label for="from">Author:</label>
+                      <input name="from" type="text" maxlength="50"/>
+                      <label for="to">Receipiant:</label>
+                      @<input name="to" type="text" maxlength="50"/>
+                      <br/>
+                      <label style="white-space: nowrap;" for="raw"><input type="checkbox" name="raw"/> raw</label>
                     </fieldset>
                     <input type="submit" value="Search"/>
                   </form>
@@ -206,17 +187,21 @@ module.exports = (robot) ->
       presence = !!req.query.presence
       get_logs_for_range client, m_start, m_end, room, (replies) ->
         res.write views.log_view.head(charset_meta: charset_meta)
-        res.write format_logs_for_html(replies, presence).join("\r\n")
+        res.write format_logs_for_html(replies, room, presence).join("\r\n")
         res.end views.log_view.tail
 
     app.get '/logs/search', (req, res) ->
       res.statusCode = 200
       res.setHeader 'Content-Type', 'text/html' + charset_parameter
-      start = req.query.start
-      end   = req.query.end
-      room = req.query.room || 'general'
-      if(! req.query.start)
-        m_start = moment.unix 0
+      start = req.query.start || ''
+      end   = req.query.end || ''
+      room = req.query.room || ''
+      search = req.query.search || ''
+      to = req.query.to || ''
+      from = req.query.from || ''
+      raw = req.query.raw || false
+      if(! start)
+        m_start = moment('2015/08/01')
       else
         m_start = moment(start)
 
@@ -225,20 +210,44 @@ module.exports = (robot) ->
       else
         m_end = moment(end)
 
-      search_logs_for_range client, m_start, m_end, req.query.search, room, (replies) ->
-        res.write views.log_view.head(charset_meta: charset_meta)
-        res.write "<h2>Search results for #"+room
-        if(req.query.start)
-          res.write " from "+req.query.start
-        if(req.query.end)
-          if(req.query.start)
-            res.write " to "+req.query.end
-          else
-            res.write " before or on "+req.query.end
-        if(req.query.search)
-          res.write " containing <i>\""+req.query.search+"\""
-        res.write "</h2>"
-        res.write format_logs_for_html(replies, true, req.query.search).join("\r\n")
+      res.write views.log_view.head(charset_meta: charset_meta)
+      res.write """
+          <form action="/logs/search" class="form-horizontal" method="GET" id="search-form">
+            <fieldset>
+              <strong>Search</strong> #<select id="room-select" name="room" style="width:150px" class="submit-on-change">
+                <option value="">All Channels</option>
+"""
+      client.smembers "rooms", (err, rooms) ->
+        rooms.sort().forEach (r) ->
+          res.write "<option value=\"#{encodeURIComponent(r)}\"#{if room and room==r then 'selected="selected"' else ''}>#{r}</option>"
+        res.write """"
+              </select>
+              for <input id="search" name="search" type="text" maxlength="150" placeholder="Text to search" value="#{search}" style="width:200px"/>
+              Between <input name="start" type="text" placeholder="mm/dd/yyyy" class="datepicker" value="#{start}" style="width:75px"/>
+              -
+              <input name="end" type="text" placeholder="mm/dd/yyyy"  class="datepicker" value="#{end}" style="width:75px"/>
+              @<input name="from" type="text" placeholder="Author" value="#{from}" style="width:75px"/>
+              @<input name="to" type="text" placeholder="Receipiant" value="#{to}" style="width:75px"/>
+              <label style="white-space: nowrap;display:inline-block" for="raw"><input type="checkbox" name="raw" value="true"#{if raw then ' checked="checked"' else ''}/> raw</label>
+              <input type="submit" value="Search"/>
+            </fieldset>
+          </form>
+        """
+
+        if not room and not search and not from and not to and not start
+          res.write """
+                   <div class="no-results">Please select a channel, enter a search term, or select a start date</div>
+            """
+          res.end views.log_view.tail
+          return
+
+      search_logs_for_array client, room, enumerate_keys_for_date_range(m_start, m_end), search, to, from, (replies) ->
+        if not replies or not replies.length
+          res.write """
+                 <div class="no-results">No results found</div>
+          """
+        else
+          res.write format_logs_for_html(replies, room, true, search, raw).join("\r\n")
         res.end views.log_view.tail
 
     app.get '/logs/:room', (req, res) ->
@@ -274,7 +283,7 @@ module.exports = (robot) ->
         return
       get_log client, req.params.room, id, (logs) ->
         res.write views.log_view.head(charset_meta: charset_meta)
-        res.write format_logs_for_html(logs, presence).join("\r\n")
+        res.write format_logs_for_html(logs, req.params.room, presence).join("\r\n")
         res.end views.log_view.tail
 
   robot.log_server = connect.listen process.env.LOG_HTTP_PORT || 8081
@@ -299,10 +308,10 @@ module.exports = (robot) ->
       robot.logging[room].notified = true
       return
     if robot.brain.data.logging[room].enabled and not robot.logging[room].notified
-      msg.send "I'm logging messages in #{room} at " +
-                 "http://#{OS.hostname()}:#{process.env.LOG_HTTP_PORT || 8081}/" +
-                 "logs/#{encodeURIComponent(room)}/#{date_id()}\n" +
-                 "Say `#{robot.name} stop logging forever' to disable logging indefinitely."
+      #msg.send "I'm logging messages in #{room} at " +
+      #          "http://#{OS.hostname()}:#{process.env.LOG_HTTP_PORT || 8081}/" +
+      #          "logs/#{encodeURIComponent(room)}/#{date_id()}\n" +
+      #          "Say `#{robot.name} stop logging forever' to disable logging indefinitely."
       robot.logging[room].notified = true
 
   # Enable logging
@@ -405,58 +414,92 @@ format_logs_for_chat = (logs) ->
 # Returns an array of lines representing a table for <logs>
 # Params:
 #   logs - an array of log objects
-format_logs_for_html = (logs, presence=true, search=null) ->
+format_logs_for_html = (logs, room, presence=true, search=null, raw=false) ->
   lines = []
   last_entry = null
-  for log in logs
-    l = JSON.parse log
-
+  last_room = null
+  for l in logs
     # Don't print a bunch of join or part messages for the same person. Hubot sometimes
     # sees keepalives from Jabber gateways as multiple joins
     continue if l.type != 'text' and l.from == last_entry?.from and l.type == last_entry?.type
     continue if not presence and l.type != 'text'
+    continue if l.from == 'unknown'
     l.date = moment(l.timestamp)
 
     # If the date changed
-    if not (l.date.date() == last_entry?.date?.date() and l.date.month() == last_entry?.date?.month())
-      lines.push """<div class="row logentry">
-                  <div class="span2"><strong>#{l.date.format("MMMM D, YYYY")}</strong></div>
-                  <div class="span10">&nbsp;</div>
-                </div>
-              """
-    last_entry = l
+    if not raw
+      if not (l.room == last_room and l.date.date() == last_entry?.date?.date() and l.date.month() == last_entry?.date?.month())
+        lines.push """
+                  <div class="row logentry">
+                    <div class="span12" style="text-align:center;margin:20px 0;">
+                      <div class="day_divider" data-date="#{l.room}-#{l.date.format("YYYY-MM-DD")}"><i class="copy_only"><br>----- </i><div class="day_divider_label" aria-label="#{l.date.format("MMMM D, YYYY")}">#{l.date.format("MMMM D, YYYY")}#{if ! room then ' #'+l.room else ''}</div><i class="copy_only"> #{l.date.format("MMMM D, YYYY")}#{if ! room then ' #'+l.room else ''} -----</i></div>
+                      <div class="line" style="margin: -18px 0 0;;border-top: 1px solid #e8e8e8;"></div>
+                    </div>
+                  </div>
+                """
+      last_entry = l
+      last_room = l.room
+
     l.time = moment(l.timestamp).format("h:mm:ss a")
+    charIndex = ''+(l.from.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0))
+    if(charIndex == '21')
+      charIndex = '23'
+    if(charIndex.length == 1)
+      charIndex = '0'+charIndex
+    avatar = 'https://i1.wp.com/a.slack-edge.com/66f9/img/avatars/ava_00'+charIndex+'-48.png'
     switch l.type
       when 'join'
-        lines.push """<div class="row logentry">
-                        <div class="span2">
-                          <p>#{l.time}</p>
-                        </div>
-                        <div class="span10">
-                          <p><span class="username">#{escapeHTML(l.from)}</span> joined</p>
-                        </div>
-                      </div>
-                    """
+        if not raw
+          message = '<span class="status-message">joined #'+escapeHTML(room)+'.</span>'
+        else
+          message = 'joined #'+escapeHTML(room)+'.'
       when 'part'
-         lines.push """<div class="row logentry">
-                        <div class="span2">
-                          <p>#{l.time}</p>
-                        </div>
-                        <div class="span10">
-                          <p><span class="username">#{escapeHTML(l.from)}</span> left</p>
-                        </div>
-                      </div>
-                    """
+        if not raw
+          message = '<span class="status-message">left '+escapeHTML(room)+'</span>'
+        else
+          message = 'left #'+escapeHTML(room)+'.'
       when 'text'
-         lines.push """<div class="row logentry">
-                        <div class="span2">
-                          <p>#{l.time}</p>
-                        </div>
-                        <div class="span10">
-                          <p>&lt;<span class="username">#{escapeHTML(l.from)}</span>&gt;&nbsp;#{escapeHTML(l.message)}</p>
-                        </div>
-                      </div>
-                   """
+        message = escapeHTML(l.message)
+        message = message.replace /\b(?!git@)(\w)[^\s]+@\S+(\.[^\s.]+)/g, "$1***@****$2"
+        if not raw
+          if(search)
+            re = new RegExp('('+search+')', 'gi')
+            message = message.replace re, '<span style="font-weight:bold;font-style:italic;color:green;"><i>$1</i></span>'
+          message = message.replace 'and commented: ', 'and commented:<br/><br/>'
+          message = message.replace /```\n*((.|\n)+?)```/gm, '<br/><pre style="background-color=#efefef">$1</pre>'
+          message = message.replace /\n/gm, '<br/>'
+          message = message.replace /(^|\s)@([\w\.-]+)/g, '$1<span style="font-weight:bold;font-style:italic">@$2</span>'
+          message = message.replace /(^|\b)(https{0,1}:\/\/[\w\/\._:\?=\&\%\;\#~-]+)(\b|$)/, '<a href="$2" target="_blank">$2</a>'
+          message = message.replace />(https{0,1}:\/\/[\w\/\._:\?=\&\%\;\#-]+\.(gif|jpg|jpeg|png))</i, '><img src="$1" style="max-height:300px;max-width=600px;"><'
+          message = message.replace /:stuck_out_tongue:/g, '<span class="emoji-outer emoji-sizer emoji-only"><span class="emoji-inner" style="background: url(https://a.slack-edge.com/e4cee/img/emoji_2016_02_06/sheet_apple_64_indexed_256colors.png);background-position:67.5% 0%;background-size:4100%" title="stuck_out_tongue">:stuck_out_tongue:</span></span>'
+          message = message.replace /:wink:/g, '<span class="emoji-outer emoji-sizer emoji-only"><span class="emoji-inner" style="background: url(https://a.slack-edge.com/e4cee/img/emoji_2016_02_06/sheet_apple_64_indexed_256colors.png);background-position:65% 57.5%;background-size:4100%" title="wink">:wink:</span></span>'
+          message = message.replace /:simple_smile:/g, '<span class="emoji emoji-sizer emoji-only" style="background-image:url(https://a.slack-edge.com/66f9/img/emoji_2015/apple-old/simple_smile.png)" title="simple_smile">:simple_smile:</span>'
+          message = message.replace /:laughing:/g, '<span class="emoji-outer emoji-sizer emoji-only"><span class="emoji-inner" style="background: url(https://a.slack-edge.com/e4cee/img/emoji_2016_02_06/sheet_apple_64_indexed_256colors.png);background-position:65% 50%;background-size:4100%" title="laughing">:laughing:</span></span>'
+          message = message.replace /:smile:/g, '<span class="emoji-outer emoji-sizer emoji-only"><span class="emoji-inner" style="background: url(https://a.slack-edge.com/e4cee/img/emoji_2016_02_06/sheet_apple_64_indexed_256colors.png);background-position:65% 45%;background-size:4100%" title="smile">:smile:</span></span>'
+          message = message.replace /:\+1:/g, '<span class="emoji-outer emoji-sizer emoji-only"><span class="emoji-inner" style="background: url(https://a.slack-edge.com/e4cee/img/emoji_2016_02_06/sheet_apple_64_indexed_256colors.png);background-position:37.5% 20%;background-size:4100%" title="+1">:+1:</span></span>'
+          message = message.replace /:-1:/g, '<span class="emoji-outer emoji-sizer emoji-only"><span class="emoji-inner" style="background: url(https://a.slack-edge.com/e4cee/img/emoji_2016_02_06/sheet_apple_64_indexed_256colors.png);background-position:37.5% 35%;background-size:4100%" title="-1">:-1:</span></span>'
+          message = message.replace /:stuck_out_tongue_winking_eye:/g, '<span class="emoji-outer emoji-sizer emoji-only"><span class="emoji-inner" style="background: url(https://a.slack-edge.com/e4cee/img/emoji_2016_02_06/sheet_apple_64_indexed_256colors.png);background-position:67.5% 2.5%;background-size:4100%" title="stuck_out_tongue_winking_eye">:stuck_out_tongue_winking_eye:</span></span>'
+          message = message.replace /:clap:/g, '<span class="emoji-outer emoji-sizer emoji-only"><span class="emoji-inner" style="background: url(https://a.slack-edge.com/e4cee/img/emoji_2016_02_06/sheet_apple_64_indexed_256colors.png);background-position:37.5% 50%;background-size:4100%" title="clap">:clap:</span></span>'
+          message = message.replace /:smiley:/g, '<span class="emoji-outer emoji-sizer emoji-only"><span class="emoji-inner" style="background: url(https://a.slack-edge.com/e4cee/img/emoji_2016_02_06/sheet_apple_64_indexed_256colors.png);background-position:65% 42.5%;background-size:4100%" title="smiley">:smiley:</span></span>'
+    if not raw
+      lines.push """<div class="row logentry" id="#{l.room}-#{l.from}-#{l.timestamp}">
+                    <div class="span1" style="text-align:right;">
+                      <img src="#{avatar}"/>
+                    </div>
+                    <div class="span11" style="margin-left: 10px">
+                      <div class="name-and-time"><a href="https://team43.slack.com/team/#{escapeHTML(l.from)}" target="_blank" class="log-from">#{escapeHTML(l.from)}</a> <a class="log-time" href="/logs/search?room=#{escapeHTML(l.room)}&start=#{l.date.clone().subtract('days',1).format('MM/DD/YYYY')}&end=#{l.date.clone().add('days',7).format('MM/DD/YYYY')}##{escapeHTML(l.room+'-'+l.from+'-'+l.timestamp)}">#{l.time.toUpperCase()}</a></div>
+                      <div class="log-message">#{message}</div>
+                    </div>
+                  </div>
+               """
+    else
+      lines.push """<div class="row logentry" id="#{l.room}-#{l.from}-#{l.timestamp}">
+                      <div class="span2 log-time" style="margin:0 !important"><a class="log-time" href="/logs/search?room=#{escapeHTML(l.room)}&start=#{l.date.clone().subtract('days',1).format('MM/DD/YYYY')}&end=#{l.date.clone().add('days',7).format('MM/DD/YYYY')}&raw=true##{escapeHTML(l.room+'-'+l.from+'-'+l.timestamp)}">#{l.date.format("YYYY-MM-DD HH:mm:ss")}</a></div>
+                      <div class="span2 log-room" style="margin:0 !important">##{l.room}</div>
+                      <div class="span2 log-from" style="margin:0 !important">#{l.from}</div>
+                      <div class="span7 log-message">#{message}</div>
+                    </div>
+                """
   return lines
 
 # Returns a User object to send a direct message to
@@ -480,7 +523,14 @@ get_log = (redis, room, id, callback) ->
   log_key = "logs:#{room}:#{id}"
   return [] if not redis.exists log_key
   redis.lrange [log_key, 0, -1], (err, replies) ->
-    callback(replies)
+    results = []
+    for rep in replies
+      try
+        json = JSON.parse rep
+        json['room'] = room
+        results.push json
+      catch e
+    callback(results)
 
 # Calls back an array of JSON log objects representing the log
 # for every date ID in <ids>
@@ -490,17 +540,61 @@ get_log = (redis, room, id, callback) ->
 #   ids   - an array of YYYYMMDD date id strings to pull logs for
 #   callback - a function taking an array of log objects
 get_logs_for_array = (redis, room, ids, callback) ->
-  m = redis.multi()
-  for id in ids
-    m.lrange("logs:#{room}:#{id}", 0, -1)
-  m.exec (err, reply) ->
-    ret = []
-    if reply[0] instanceof Array
-      for r in reply
-        ret = ret.concat r
-    else
-      ret = reply
-    callback(ret)
+    results = []
+    m = redis.multi()
+    for id in ids
+      m.lrange("logs:#{r}:#{id}", 0, -1)
+      m.exec (err, reply) ->
+        if reply[0] instanceof Array
+          for rep in reply[0]
+            try
+              json = JSON.parse rep
+              json['room'] = room
+              results.push json
+            catch e
+        else
+          try
+            json = JSON.parse reply
+            json['room'] = room
+            results.push json
+          catch e
+        callback(results)
+
+search_logs_for_array = (redis, room, ids, search, to, from, callback) ->
+  redis.smembers "rooms", (err, rooms) ->
+    if room and rooms.indexOf(room) < 0
+      callback([])
+      return
+    results = []
+    callsRemaining = 0
+    for id in ids
+      do(id)->
+        for r in rooms.sort()
+          if ! room or r == room
+            do(r)->
+              ++callsRemaining
+              m = redis.multi()
+              m.lrange("logs:#{r}:#{id}", 0, -1)
+              m.exec (err, reply) ->
+                if reply[0] instanceof Array
+                  reply[0].forEach (rep, i) ->
+                    if rep and rep != '' and (i == 0 or (i > 0 and reply[0][i-1] != reply[0][i]))
+                      try
+                        json = JSON.parse rep
+                        if (search and json.message.toLowerCase().indexOf(search.toLowerCase()) <0) or (to and json.message.indexOf('@'+to) < 0) or (from and json.from != from)
+                          return
+                        json['room'] = r
+                        results.push json
+                      catch e
+                else
+                  try
+                    json = JSON.parse reply
+                    json['room'] = room
+                    results.push json
+                  catch e
+                --callsRemaining
+                if callsRemaining <= 0
+                  callback(results)
 
 # Calls back an array of JSON log objects representing the log
 # for <date>
@@ -528,25 +622,7 @@ get_logs_for_range = (redis, start, end, room, callback) ->
     slice = []
     for log in logs
       e = JSON.parse log
-      slice.push log if e.timestamp >= start.valueOf() && e.timestamp <= end.valueOf()
-    callback(slice)
-
-# Calls back an array of JSON log objects representing the log
-# between <start> and <end> that contain <search>
-# Params:
-#   redis  - a Redis client object
-#   start  - Date or Moment object representing the start of the range
-#   end    - Date or Moment object representing the end of the range (inclusive)
-#   search - String to search
-#   room   - the room to look up logs for
-#   callback - a function taking an array as an argument
-search_logs_for_range = (redis, start, end, search, room, callback) ->
-  get_logs_for_array redis, room, enumerate_keys_for_date_range(start, end), (logs) ->
-    slice = []
-    search = search.toLowerCase()
-    for log in logs
-      e = JSON.parse log
-      slice.push log if (! start || e.timestamp >= start.valueOf()) && (! end || e.timestamp <= end.valueOf()) && (! search || e.message.toLowerCase().indexOf(search) > -1)
+      slice.push e if e.timestamp >= start.valueOf() && e.timestamp <= end.valueOf()
     callback(slice)
 
 # Enables logging for the room that sent response
@@ -681,6 +757,7 @@ views =
             <div class="span8">
               <h1>&nbsp;</h1>
               <h2><a href="/logs">Browse all rooms</a></h2>
+<!--
               <h1>&nbsp;</h1>
               <form action="/logs/view" class="form-vertical" method="get">
               <fieldset>
@@ -696,11 +773,13 @@ views =
                 <button type="submit" class="btn">Submit</button>
               </fieldset>
               </form>
+-->
             </div>
           </div>
         </div>
       </body>
     </html>"""
+
   log_view:
     head: (context) -> """
       <!DOCTYPE html>
@@ -709,15 +788,150 @@ views =
           #{ context.charset_meta }
           <title>Viewing logs</title>
           <link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.1.1/css/bootstrap-combined.min.css" rel="stylesheet">
+          <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+          <script src="//code.jquery.com/jquery-1.10.2.js"></script>
+          <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
           <style type="text/css">
             .logentry {
-              font-family: Consolas, Inconsolata, monospace;
+/*              font-family: Consolas, Inconsolata, monospace;*/
+              font-family: Slack-Lato,appleLogo,sans-serif;
+              margin-top: 10px;
             }
             .username {
               color: blue;
               font-weight: bold;
             }
+            .day_divider {
+              margin:0;
+              background:0 0;
+              pointer-events:none;
+              padding:0;
+              font-size:.9rem;
+              line-height:1rem;
+              font-family:Slack-Lato,appleLogo,sans-serif;
+              color:#2c2d30;
+              font-weight:700;
+              text-align:center;
+              cursor:default;
+              clear:both;
+              position:relative;
+              box-sizing:border-box;              
+            }
+            .day_divider_label {
+              top:-6px;
+              border-radius:1rem;
+              background:#fff;
+              padding:.25rem .75rem;
+              display:inline-block;
+              margin:0 auto;
+              position:relative;
+            }
+            .copy_only {
+              display:inline-block;
+              vertical-align:baseline;
+              width:1px;
+              height:0;
+              background-size:0;
+              background-repeat:no-repeat;
+              font-size:0;
+              color:transparent;
+              float:left;
+              text-rendering:auto;
+              -webkit-user-select:none;
+            }
+            .log-from {
+              font-weight: 900;
+              color: #2c2d30! important;
+              line-height: 1.125rem;
+              margin-right: .25rem;
+              display: inline;
+              word-break: break-word;
+            }
+            .log-time {
+              color: #9e9ea6;
+              font-size: 0.75rem;
+            }
+            .log-room {
+              font-weight: bold;
+            }
+            .log-from {
+              font-weight: bold;
+            }
+            .status-message {
+              color:#9e9ea6;
+              font-style: italic;
+            }
+            .no-results {
+              margin: 2rem 1rem;
+              font-size: 1rem;
+              line-height: 1.25rem;
+              font-family: Slack-Lato,appleLogo,sans-serif;
+              text-align: center;
+              color: #9e9ea6;
+            }
+
+span.emoji-sizer.emoji-only, span.emoji-sizer {
+    line-height: 1.125rem;
+    font-size: 1.375rem;
+    vertical-align: middle;
+    margin-top: -4px;
+}
+span.emoji-outer {
+    display: -moz-inline-box;
+    display: inline-block;
+    height: 1em;
+    width: 1em;
+    mmargin-top: -1px;
+}
+.emoji-only {
+    line-height: 2rem;
+    font-size: 2rem;
+    margin-top: 2px;
+}
+
+span.emoji {
+    -moz-box-orient: vertical;
+    display: inline-block;
+    overflow: hidden;
+    width: 1em;
+    height: 1em;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: 50% 50%;
+    text-align: left;
+}
+span.emoji-sizer.emoji-only, span.emoji-sizer {
+    line-height: 1.125rem;
+    font-size: 1.375rem;
+    vertical-align: middle;
+    margin-top: -4px;
+}
+span.emoji-inner {
+    display: -moz-inline-box;
+    display: inline-block;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    background-size: 4100%!important;
+}
+span.emoji-inner:not(:empty), span.emoji:not(:empty) {
+    text-indent: 100%;
+    color: transparent;
+    text-shadow: none;
+}
+.emoji-only {
+    line-height: 2rem;
+    font-size: 2rem;
+    margin-top: 2px;
+}
+
+
           </style>
+          <script>
+            $(function() {
+              $(".datepicker").datepicker();
+            });
+          </script>
         </head>
         <body>
           <div class="container">
