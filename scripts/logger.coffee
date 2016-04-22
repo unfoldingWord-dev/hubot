@@ -134,11 +134,15 @@ module.exports = (robot) ->
       
       res.write views.log_view.head(charset_meta: charset_meta)
       res.write """
-              <form id="search-form" action="/logs/search" class="form-vertical" method="get">
+              <div style="vertical-align:middle">
+                <img src="https://a.slack-edge.com/f30f/img/services/api_200.png" style="width:100px;"><h1 style="display:inline-block;">Team43 Slack Logs</h1>
+              </div>
+              <form id="search-form" action="/logs/search" method="get">
+              <legend>Search the logs</legend>
               <fieldset>
-                <legend>Search the logs</legend>
-                <label for="room">Channel:</label>
-                #<select id="room-select" name="room">
+                <div style="float:left; padding-right:10px;">
+                  <label for="room">Channel:</label>
+                  #<select id="room-select" name="room">
                   <option value="">All Channels</option>
 """
       client.smembers "rooms", (err, rooms) ->
@@ -146,21 +150,28 @@ module.exports = (robot) ->
           res.write "<option value=\"#{encodeURIComponent(room)}\">#{room}</option>"
         res.write """"
                       </select>
+                </div>
+                <div float="left;">
                       <label for="search">Text to search:</label>
-                      <input id="search" name="search" type="text" maxlength="200"/>
-                      <label for="start">Between</label>
+                      <input id="search" name="search" type="text" maxlength="200" placeholder="Search"/>
+                </div>
+                <div style="clear:left;float:left; padding-right:10px;">
+                      <label for="start">Date: Between</label>
                       <input name="start" type="text" placeholder="mm/dd/yyyy" class="datepicker"/>
-                      <label for="end">and</label>
-                      <input name="end" type="text" placeholder="mm/dd/yyyy"  class="datepicker"/>
-                      <label for="from">Author:</label>
-                      <input name="from" type="text" maxlength="50"/>
+                      and <input name="end" type="text" placeholder="mm/dd/yyyy"  class="datepicker"/>
+                </div>
+                <div style="clear:left;float:left; padding-right:10px;">
+                     <label for="from">Author:</label>
+                    <input name="from" type="text" maxlength="50"/>
+                </div>
+                <div style="float:left; padding-right:10px;">
                       <label for="to">Receipiant:</label>
                       @<input name="to" type="text" maxlength="50"/>
-                      <br/>
-                      <label style="white-space: nowrap;" for="raw"><input type="checkbox" name="raw"/> raw</label>
-                    </fieldset>
-                    <input type="submit" value="Search"/>
-                  </form>
+                </div>
+                <label style="clear:both; white-space: nowrap;" for="raw"><input type="checkbox" name="raw"/> raw</label>
+                </fieldset>
+                <input type="submit" value="Search"/>
+              </form>
 """
         res.write "<legend>View Log by Date</legend>\r\n"
         res.write "<ul>\r\n"
@@ -200,21 +211,41 @@ module.exports = (robot) ->
       to = req.query.to || ''
       from = req.query.from || ''
       raw = req.query.raw || false
+      earliest_date = moment('07/22/2015')
+      latest_date = moment()
       if(! start)
-        m_start = moment('2015/08/01')
+        m_start = earliest_date.clone()
       else
         m_start = moment(start)
+        if not m_start.isValid()
+          m_start = earliest_date.clone()
+        if m_start.diff(earliest_date) < 0
+          m_start = earliest_date.clone()
+        if m_start.diff(latest_date) > 0
+          m_start = latest_date.clone()
+        start = m_start.format('MM/DD/YYYY')
 
       if(! end)
-        m_end = moment()
+        m_end = latest_date.clone()
       else
         m_end = moment(end)
+        if not m_end.isValid()
+          m_end = latest_date.clone()
+        if m_end.diff(m_start) < 0
+          m_end = m_start.clone()
+        if m_end.diff(latest_date) > 0
+          m_end = latest_date.clone()
+        if m_end.diff(earliest_date) < 0
+          m_end = earliest_date.clone()
+        end = m_end.format('MM/DD/YYYY')
 
       res.write views.log_view.head(charset_meta: charset_meta)
       res.write """
           <form action="/logs/search" class="form-horizontal" method="GET" id="search-form">
             <fieldset>
-              <strong>Search</strong> #<select id="room-select" name="room" style="width:150px" class="submit-on-change">
+              <a href="/logs"><img src="https://a.slack-edge.com/f30f/img/services/api_200.png" width="25px"></a>
+              <strong>Search</strong>
+              #<select id="room-select" name="room" style="width:150px" class="submit-on-change">
                 <option value="">All Channels</option>
 """
       client.smembers "rooms", (err, rooms) ->
@@ -257,6 +288,8 @@ module.exports = (robot) ->
       res.write "<h2>Logs for #{req.params.room}</h2>\r\n"
       res.write "<ul>\r\n"
 
+      res.write "<li><a href=\"/logs/search?room=#{encodeURIComponent(req.params.room)}\">All Dates</a></li>\r\n"
+
       # This is a bit of a hack... KEYS takes O(n) time
       # and shouldn't be used for this, but it's not worth
       # creating a set just so that we can list all logs 
@@ -269,7 +302,7 @@ module.exports = (robot) ->
         days.sort (a, b) ->
             return b.diff(a)
         days.forEach (date) ->
-          res.write "<li><a href=\"/logs/#{encodeURIComponent(req.params.room)}/#{date.format('YYYYMMDD')}\">#{date.format('dddd, MMMM Do YYYY')}</a></li>\r\n"
+          res.write "<li><a href=\"/logs/search?room=#{encodeURIComponent(req.params.room)}&start=#{date.format('MM/DD/YYYY')}&end=#{date.format('MM/DD/YYYY')}\">#{date.format('dddd, MMMM Do YYYY')}</a></li>\r\n"
         res.write "</ul>"
         res.end views.log_view.tail
 
@@ -418,6 +451,8 @@ format_logs_for_html = (logs, room, presence=true, search=null, raw=false) ->
   lines = []
   last_entry = null
   last_room = null
+  if raw
+    lines.push """<table class="span12" cellspacing=0 cellpadding=5>\n"""
   for l in logs
     # Don't print a bunch of join or part messages for the same person. Hubot sometimes
     # sees keepalives from Jabber gateways as multiple joins
@@ -450,14 +485,14 @@ format_logs_for_html = (logs, room, presence=true, search=null, raw=false) ->
     switch l.type
       when 'join'
         if not raw
-          message = '<span class="status-message">joined #'+escapeHTML(room)+'.</span>'
+          message = '<span class="status-message">joined #'+escapeHTML(l.room)+'.</span>'
         else
-          message = 'joined #'+escapeHTML(room)+'.'
+          message = 'joined #'+escapeHTML(l.room)+'.'
       when 'part'
         if not raw
-          message = '<span class="status-message">left '+escapeHTML(room)+'</span>'
+          message = '<span class="status-message">left '+escapeHTML(l.room)+'</span>'
         else
-          message = 'left #'+escapeHTML(room)+'.'
+          message = 'left #'+escapeHTML(l.room)+'.'
       when 'text'
         message = escapeHTML(l.message)
         message = message.replace /\b(?!git@)(\w)[^\s]+@\S+(\.[^\s.]+)/g, "$1***@****$2"
@@ -465,12 +500,12 @@ format_logs_for_html = (logs, room, presence=true, search=null, raw=false) ->
           if(search)
             re = new RegExp('('+search+')', 'gi')
             message = message.replace re, '<span style="font-weight:bold;font-style:italic;color:green;"><i>$1</i></span>'
-          message = message.replace 'and commented: ', 'and commented:<br/><br/>'
+          message = message.replace /and commented:\s+([\S\n\s]+)$/i, 'and commented:<br/><code>$1</code>'
           message = message.replace /```\n*((.|\n)+?)```/gm, '<br/><pre style="background-color=#efefef">$1</pre>'
           message = message.replace /\n/gm, '<br/>'
           message = message.replace /(^|\s)@([\w\.-]+)/g, '$1<span style="font-weight:bold;font-style:italic">@$2</span>'
           message = message.replace /(^|\b)(https{0,1}:\/\/[\w\/\._:\?=\&\%\;\#~-]+)(\b|$)/, '<a href="$2" target="_blank">$2</a>'
-          message = message.replace />(https{0,1}:\/\/[\w\/\._:\?=\&\%\;\#-]+\.(gif|jpg|jpeg|png))</i, '><img src="$1" style="max-height:300px;max-width=600px;"><'
+          message = message.replace />(https{0,1}:\/\/(?!team43.slack.com)[\w\/\._:\?=\&\%\;\#-]+\.(gif|jpg|jpeg|png))</i, '><img src="$1" style="max-height:300px;max-width=600px;"><'
           message = message.replace /:stuck_out_tongue:/g, '<span class="emoji-outer emoji-sizer emoji-only"><span class="emoji-inner" style="background: url(https://a.slack-edge.com/e4cee/img/emoji_2016_02_06/sheet_apple_64_indexed_256colors.png);background-position:67.5% 0%;background-size:4100%" title="stuck_out_tongue">:stuck_out_tongue:</span></span>'
           message = message.replace /:wink:/g, '<span class="emoji-outer emoji-sizer emoji-only"><span class="emoji-inner" style="background: url(https://a.slack-edge.com/e4cee/img/emoji_2016_02_06/sheet_apple_64_indexed_256colors.png);background-position:65% 57.5%;background-size:4100%" title="wink">:wink:</span></span>'
           message = message.replace /:simple_smile:/g, '<span class="emoji emoji-sizer emoji-only" style="background-image:url(https://a.slack-edge.com/66f9/img/emoji_2015/apple-old/simple_smile.png)" title="simple_smile">:simple_smile:</span>'
@@ -493,13 +528,27 @@ format_logs_for_html = (logs, room, presence=true, search=null, raw=false) ->
                   </div>
                """
     else
-      lines.push """<div class="row logentry" id="#{l.room}-#{l.from}-#{l.timestamp}">
-                      <div class="span2 log-time" style="margin:0 !important"><a class="log-time" href="/logs/search?room=#{escapeHTML(l.room)}&start=#{l.date.clone().subtract('days',1).format('MM/DD/YYYY')}&end=#{l.date.clone().add('days',7).format('MM/DD/YYYY')}&raw=true##{escapeHTML(l.room+'-'+l.from+'-'+l.timestamp)}">#{l.date.format("YYYY-MM-DD HH:mm:ss")}</a></div>
-                      <div class="span2 log-room" style="margin:0 !important">##{l.room}</div>
-                      <div class="span2 log-from" style="margin:0 !important">#{l.from}</div>
-                      <div class="span7 log-message">#{message}</div>
-                    </div>
+#      lines.push """<div class="row logentry" id="#{l.room}-#{l.from}-#{l.timestamp}">
+#                      <div class="span2 log-time" style="margin:0 !important"><a class="log-time" href="/logs/search?room=#{escapeHTML(l.room)}&start=#{l.date.clone().subtract('days',1).format('MM/DD/YYYY')}&end=#{l.date.clone().add('days',7).format('MM/DD/YYYY')}&raw=true##{escapeHTML(l.room+'-'+l.from+'-'+l.timestamp)}">#{l.date.format("YYYY-MM-DD HH:mm:ss")}</a></div>
+#      """
+#      if ! room
+#        lines.push """<div class="span2 log-room" style="margin:0 !important">##{l.room}</div>"""
+#      lines.push """  <div class="span2 log-from" style="margin:0 !important">#{l.from}</div>
+#                      <div class="span#{if room then "9" else "7"} log-message">#{message}</div>
+#                    </div>
+#                """
+      lines.push """<tr class="row logentry-raw" id="#{l.room}-#{l.from}-#{l.timestamp}">
+                      <td class="log-time-raw" style="width:1%;white-space:nowrap;vertical-align:top;text-align:left;"><a class="log-time" href="/logs/search?room=#{escapeHTML(l.room)}&start=#{l.date.clone().subtract('days',1).format('MM/DD/YYYY')}&end=#{l.date.clone().add('days',7).format('MM/DD/YYYY')}&raw=true##{escapeHTML(l.room+'-'+l.from+'-'+l.timestamp)}">#{l.date.format("YYYY-MM-DD HH:mm:ss")}</a></td>
+      """
+      if ! room
+        lines.push """<td class="log-room-raw" style="width:1%;white-space:nowrap;vertical-align:tope;text-align:left;">##{l.room}</td>"""
+      lines.push """  <td class="log-from-raw" style="width:1%;white-space:nowrap;vertical-align:top;text-align:left;">#{l.from}</td>
+                      <td class=log-message-raw" style="vertical-align:top;text-align:left;">#{message}</td>
+                    </tr>
                 """
+  if raw
+    lines.push """</table>"""
+
   return lines
 
 # Returns a User object to send a direct message to
@@ -744,9 +793,10 @@ escapeHTML = (str) ->
 
 views =
   index: (context) -> """
-    <!DOCTYPE html>
-    <html>
-      <head>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+  <html lang="en-US">
+      <head profile="http://www.w3.org/2005/10/profile">
+        <link rel="icon" type="image/png" href="https://a.slack-edge.com/f30f/img/services/api_200.png">
         #{ context.charset_meta }
         <title>View logs</title>
         <link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.1.1/css/bootstrap-combined.min.css" rel="stylesheet">
@@ -782,9 +832,10 @@ views =
 
   log_view:
     head: (context) -> """
-      <!DOCTYPE html>
-      <html>
-        <head>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+  <html lang="en-US">
+      <head profile="http://www.w3.org/2005/10/profile">
+          <link rel="icon" type="image/png" href="https://a.slack-edge.com/f30f/img/services/api_200.png">
           #{ context.charset_meta }
           <title>Viewing logs</title>
           <link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.1.1/css/bootstrap-combined.min.css" rel="stylesheet">
