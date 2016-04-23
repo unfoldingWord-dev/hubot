@@ -157,8 +157,8 @@ module.exports = (robot) ->
                 </div>
                 <div style="clear:left;float:left; padding-right:10px;">
                       <label for="start">Date: Between</label>
-                      <input name="start" type="text" placeholder="mm/dd/yyyy" class="datepicker"/>
-                      and <input name="end" type="text" placeholder="mm/dd/yyyy"  class="datepicker"/>
+                      <input id="start-date" name="start" type="text" placeholder="mm/dd/yyyy" class="datepicker"/>
+                      and <input id="end-date" name="end" type="text" placeholder="mm/dd/yyyy"  class="datepicker"/>
                 </div>
                 <div style="clear:left;float:left; padding-right:10px;">
                      <label for="from">Author:</label>
@@ -254,9 +254,9 @@ module.exports = (robot) ->
         res.write """"
               </select>
               for <input id="search" name="search" type="text" maxlength="150" placeholder="Text to search" value="#{search}" style="width:200px"/>
-              Between <input name="start" type="text" placeholder="mm/dd/yyyy" class="datepicker" value="#{start}" style="width:75px"/>
+              Between <input id="start-date" name="start" type="text" placeholder="mm/dd/yyyy" class="datepicker" value="#{start}" style="width:75px"/>
               -
-              <input name="end" type="text" placeholder="mm/dd/yyyy"  class="datepicker" value="#{end}" style="width:75px"/>
+              <input id="end-date" name="end" type="text" placeholder="mm/dd/yyyy"  class="datepicker" value="#{end}" style="width:75px"/>
               @<input name="from" type="text" placeholder="Author" value="#{from}" style="width:75px"/>
               @<input name="to" type="text" placeholder="Receipiant" value="#{to}" style="width:75px"/>
               <label style="white-space: nowrap;display:inline-block" for="raw"><input type="checkbox" name="raw" value="true"#{if raw then ' checked="checked"' else ''}/> raw</label>
@@ -278,6 +278,7 @@ module.exports = (robot) ->
                  <div class="no-results">No results found</div>
           """
         else
+          res.write '<div style="font-style:italic;text-align:right;">* Note: All times are in UTC/GMT, 4 hours ahead of EST</div>'
           res.write format_logs_for_html(replies, room, true, search, raw).join("\r\n")
         res.end views.log_view.tail
 
@@ -980,7 +981,7 @@ span.emoji-inner:not(:empty), span.emoji:not(:empty) {
           </style>
           <script>
             $(function() {
-              $(".datepicker").datepicker();
+              $(".datepicker").datepicker({minDate: new Date(2015, 06, 22), maxDate: new Date()});
             });
           </script>
         </head>
