@@ -127,6 +127,7 @@ module.exports = (robot) ->
       res.statusCode = 200
       res.setHeader 'Content-Type', 'text/html' + charset_parameter
       res.end views.index(charset_meta: charset_meta)
+      process.stdout.write("LOGGER: / done\n")
 
     app.get '/logs', (req, res) ->
       res.statusCode = 200
@@ -181,6 +182,7 @@ module.exports = (robot) ->
             res.write "<li><a href=\"/logs/#{encodeURIComponent(room)}\">##{room}</a></li>\r\n"
           res.write "</ul>"
           res.end views.log_view.tail
+          process.stdout.write("LOGGER: /logs done\n")
 
     app.get '/logs/view', (req, res) ->
       res.statusCode = 200
@@ -200,6 +202,7 @@ module.exports = (robot) ->
         res.write views.log_view.head(charset_meta: charset_meta)
         res.write format_logs_for_html(replies, room, presence).join("\r\n")
         res.end views.log_view.tail
+        process.stdout.write("LOGGER: /logs/view done\n")
 
     app.get '/logs/search', (req, res) ->
       res.statusCode = 200
@@ -211,6 +214,7 @@ module.exports = (robot) ->
       to = req.query.to || ''
       from = req.query.from || ''
       raw = req.query.raw || false
+      process.stdout.write("LOGGER: SEARCH FOR room:"+room+"; search:"+search+"; start:"+start+"; end:"+end+"; to:"+to+"; from:"+from+"; raw:"+raw+"\n")
       earliest_date = moment('07/22/2015')
       latest_date = moment()
       if(! start)
@@ -272,15 +276,17 @@ module.exports = (robot) ->
           res.end views.log_view.tail
           return
 
-      search_logs_for_array client, room, enumerate_keys_for_date_range(m_start, m_end), search, to, from, (replies) ->
-        if not replies or not replies.length
-          res.write """
+        search_logs_for_array client, room, enumerate_keys_for_date_range(m_start, m_end), search, to, from, (replies) ->
+          process.stdout.write("LOGGER: "+replies.length+" results found\n")
+          if not replies or not replies.length
+            res.write """
                  <div class="no-results">No results found</div>
-          """
-        else
-          res.write '<div style="font-style:italic;text-align:right;">* Note: All times are in UTC/GMT, 4 hours ahead of EST</div>'
-          res.write format_logs_for_html(replies, room, true, search, raw).join("\r\n")
-        res.end views.log_view.tail
+            """
+          else
+            res.write '<div style="font-style:italic;text-align:right;">* Note: All times are in UTC/GMT, 4 hours ahead of EST</div>'
+            res.write format_logs_for_html(replies, room, true, search, raw).join("\r\n")
+          res.end views.log_view.tail
+          process.stdout.write("LOGGER: /search done\n")
 
     app.get '/logs/:room', (req, res) ->
       res.statusCode = 200
@@ -306,6 +312,7 @@ module.exports = (robot) ->
           res.write "<li><a href=\"/logs/search?room=#{encodeURIComponent(req.params.room)}&start=#{date.format('MM/DD/YYYY')}&end=#{date.format('MM/DD/YYYY')}\">#{date.format('dddd, MMMM Do YYYY')}</a></li>\r\n"
         res.write "</ul>"
         res.end views.log_view.tail
+        process.stdout.write("LOGGER: /logs/"+req.params.room+" done\n")
 
     app.get '/logs/:room/:id', (req, res) ->
       res.statusCode = 200
@@ -319,6 +326,7 @@ module.exports = (robot) ->
         res.write views.log_view.head(charset_meta: charset_meta)
         res.write format_logs_for_html(logs, req.params.room, presence).join("\r\n")
         res.end views.log_view.tail
+        process.stdout.write("LOGGER: /logs/"+req.params.room+"/"+id+" done\n")
 
   robot.log_server = connect.listen process.env.LOG_HTTP_PORT || 8081
 
