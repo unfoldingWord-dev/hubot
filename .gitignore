@@ -4,3 +4,4 @@ node_modules
 .idea
 hubot.conf
 hubot.log
+hubot.pid
